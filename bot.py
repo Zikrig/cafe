@@ -30,6 +30,7 @@ WELCOME_TEXT = """Мы готовим с любовью! Ждём ваши за�
 При заказе от 20 000 руб. доставка в радиусе 15 км бесплатно"""
 
 ABOUT_TEXT = WELCOME_TEXT
+ABOUT_TEXT += "\n\nЕм&ем\nГородская ул., 20, Троицк\nhttps://yandex.ru/maps/org/yemem/42994344316?si=8qbne2jmc0nkgmphyryxvbnpq4"
 
 
 def get_main_menu_keyboard():
