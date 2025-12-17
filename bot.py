@@ -11,6 +11,7 @@ from aiogram.types import (
     InputMediaPhoto,
     FSInputFile,
 )
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from database import Database
 
@@ -66,6 +67,15 @@ async def edit_to_photo(message_obj, caption: str, reply_markup=None):
     except Exception as e:
         logger.debug(f"edit_media failed ({e}), sending new photo message")
         return await send_photo_message(message_obj, caption, reply_markup)
+
+
+async def safe_edit_text(message_obj, text: str, reply_markup=None):
+    """Пробует edit_text, если нельзя (например, у сообщения фото) — отправляет новое."""
+    try:
+        return await message_obj.edit_text(text, reply_markup=reply_markup)
+    except TelegramBadRequest as e:
+        logger.debug(f"edit_text failed ({e}), sending new text message")
+        return await message_obj.answer(text, reply_markup=reply_markup)
 
 
 def get_categories_keyboard(user_id: int = None):
@@ -198,7 +208,7 @@ async def show_cart(callback: CallbackQuery):
             [InlineKeyboardButton(text="Меню", callback_data="menu")],
             [InlineKeyboardButton(text="◀️ В главное меню", callback_data="main_menu")]
         ])
-    await callback.message.edit_text(text, reply_markup=markup)
+    await safe_edit_text(callback.message, text, reply_markup=markup)
     await callback.answer()
 
 
@@ -214,7 +224,7 @@ async def render_product_view(callback: CallbackQuery, product: dict, user_id: i
     text += f"В корзине: {qty} шт."
 
     keyboard = await get_product_keyboard(product_id, user_id)
-    await callback.message.edit_text(text, reply_markup=keyboard)
+    await safe_edit_text(callback.message, text, reply_markup=keyboard)
     await callback.answer(notify if notify else None)
 
 
@@ -258,7 +268,8 @@ async def callback_menu(callback: CallbackQuery):
     keyboard.append([InlineKeyboardButton(text="🛒 В корзину", callback_data="show_cart")])
     keyboard.append([InlineKeyboardButton(text="◀️ Назад", callback_data="main_menu")])
     
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "Выберите категорию:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
@@ -280,7 +291,8 @@ async def callback_category(callback: CallbackQuery):
     
     category_name = next((cat['name'] for cat in await db.get_categories() if cat['id'] == category_id), "Категория")
     
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         f"📋 {category_name}\n\nВыберите товар:",
         reply_markup=keyboard
     )
@@ -321,7 +333,8 @@ async def callback_add_to_cart(callback: CallbackQuery):
     
     category_name = next((cat['name'] for cat in await db.get_categories() if cat['id'] == category_id), "Категория")
     
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         f"📋 {category_name}\n\nВыберите товар:",
         reply_markup=keyboard
     )
@@ -345,7 +358,8 @@ async def callback_remove_from_cart(callback: CallbackQuery):
     
     category_name = next((cat['name'] for cat in await db.get_categories() if cat['id'] == category_id), "Категория")
     
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         f"📋 {category_name}\n\nВыберите товар:",
         reply_markup=keyboard
     )
@@ -396,7 +410,8 @@ async def callback_back_to_category(callback: CallbackQuery):
         keyboard = await get_products_keyboard(category_id, user_id)
         category_name = next((cat['name'] for cat in await db.get_categories() if cat['id'] == category_id), "Категория")
         
-        await callback.message.edit_text(
+        await safe_edit_text(
+            callback.message,
             f"📋 {category_name}\n\nВыберите товар:",
             reply_markup=keyboard
         )
@@ -429,7 +444,8 @@ async def callback_checkout(callback: CallbackQuery):
 
     await finalize_order(
         user_id,
-        lambda text, reply_markup=None: callback.message.edit_text(
+        lambda text, reply_markup=None: safe_edit_text(
+            callback.message,
             text,
             reply_markup=reply_markup or InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="◀️ В главное меню", callback_data="main_menu")]
@@ -462,7 +478,8 @@ async def handle_phone_input(message: Message):
     # После сохранения телефона сразу оформляем заказ
     await finalize_order(
         user_id,
-        lambda text, reply_markup=None: message.answer(
+        lambda text, reply_markup=None: safe_edit_text(
+            message,
             text,
             reply_markup=reply_markup or InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="◀️ В главное меню", callback_data="main_menu")]
