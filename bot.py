@@ -3,7 +3,14 @@ import os
 import logging
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    InputMediaPhoto,
+    FSInputFile,
+)
 from aiogram.filters import Command
 from database import Database
 
@@ -44,6 +51,21 @@ async def ensure_user(callback: CallbackQuery):
     """Гарантирует наличие пользователя в таблице users."""
     user = callback.from_user
     await db.get_or_create_user(user.id, user.username, user.first_name)
+
+
+async def send_photo_message(message_obj, caption: str, reply_markup=None):
+    photo = FSInputFile("image.png")
+    return await message_obj.answer_photo(photo=photo, caption=caption, reply_markup=reply_markup)
+
+
+async def edit_to_photo(message_obj, caption: str, reply_markup=None):
+    photo = FSInputFile("image.png")
+    media = InputMediaPhoto(media=photo, caption=caption)
+    try:
+        return await message_obj.edit_media(media=media, reply_markup=reply_markup)
+    except Exception as e:
+        logger.debug(f"edit_media failed ({e}), sending new photo message")
+        return await send_photo_message(message_obj, caption, reply_markup)
 
 
 def get_categories_keyboard(user_id: int = None):
@@ -204,7 +226,8 @@ async def cmd_start(message: Message):
     
     await db.get_or_create_user(user_id, username, first_name)
     
-    await message.answer(
+    await send_photo_message(
+        message,
         WELCOME_TEXT,
         reply_markup=get_main_menu_keyboard()
     )
@@ -212,7 +235,8 @@ async def cmd_start(message: Message):
 
 @dp.callback_query(F.data == "about")
 async def callback_about(callback: CallbackQuery):
-    await callback.message.edit_text(
+    await edit_to_photo(
+        callback.message,
         ABOUT_TEXT,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="◀️ Назад", callback_data="main_menu")]
@@ -468,7 +492,8 @@ async def check_cart_on_exit(callback: CallbackQuery):
 @dp.callback_query(F.data == "main_menu")
 async def callback_main_menu(callback: CallbackQuery):
     await ensure_user(callback)
-    await callback.message.edit_text(
+    await edit_to_photo(
+        callback.message,
         WELCOME_TEXT,
         reply_markup=get_main_menu_keyboard()
     )
